@@ -22,7 +22,10 @@
 
 ## 설치 (APK)
 
-GitHub의 **Actions → Android APK** 에서 최신 실행을 열고 `gs-note-apk` 를 내려받아 휴대폰에 설치합니다.
+휴대폰에서 아래 링크를 열면 최신 APK가 바로 내려받아집니다.
+
+https://github.com/chichunsag643-sys/gs/releases/latest/download/gs-note.apk
+
 (설치 시 "출처를 알 수 없는 앱 설치"를 허용해야 합니다.)
 
 ## 직접 빌드
