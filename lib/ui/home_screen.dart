@@ -121,16 +121,35 @@ class _HomeScreenState extends State<HomeScreen> {
                         : null,
                   ),
                 ),
-          floatingActionButton: FloatingActionButton(
-            tooltip: '새 메모',
-            onPressed: () async {
-              final note = await repo.createNote(
-                folderId: filter is FolderNotes ? filter.folderId : null,
-              );
-              if (!context.mounted) return;
-              await openNote(context, note.id);
-            },
-            child: const Icon(Icons.edit_outlined),
+          floatingActionButton: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              FloatingActionButton.small(
+                heroTag: 'new-handwriting',
+                tooltip: '새 손글씨 메모',
+                onPressed: () async {
+                  final note = await repo.createNote(
+                    folderId: filter is FolderNotes ? filter.folderId : null,
+                  );
+                  if (!context.mounted) return;
+                  await openNote(context, note.id, handwriting: true);
+                },
+                child: const Icon(Icons.draw_outlined),
+              ),
+              const SizedBox(height: 12),
+              FloatingActionButton(
+                heroTag: 'new-note',
+                tooltip: '새 메모',
+                onPressed: () async {
+                  final note = await repo.createNote(
+                    folderId: filter is FolderNotes ? filter.folderId : null,
+                  );
+                  if (!context.mounted) return;
+                  await openNote(context, note.id);
+                },
+                child: const Icon(Icons.edit_outlined),
+              ),
+            ],
           ),
         );
       },
@@ -138,9 +157,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-Future<void> openNote(BuildContext context, String id) =>
+Future<void> openNote(BuildContext context, String id,
+        {bool handwriting = false}) =>
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => NoteEditorScreen(noteId: id)),
+      MaterialPageRoute(
+          builder: (_) =>
+              NoteEditorScreen(noteId: id, startInHandwriting: handwriting)),
     );
 
 class _EmptyState extends StatelessWidget {
@@ -176,7 +198,9 @@ class _NoteTile extends StatelessWidget {
     final lines = note.plainText.trim().split('\n');
     final title = note.title.trim().isNotEmpty
         ? note.title.trim()
-        : (lines.first.trim().isNotEmpty ? lines.first.trim() : '새 메모');
+        : (lines.first.trim().isNotEmpty
+            ? lines.first.trim()
+            : (note.ink.isNotEmpty ? '손글씨 메모' : '새 메모'));
     final preview = note.title.trim().isNotEmpty
         ? note.plainText.trim()
         : lines.skip(1).join(' ').trim();
@@ -202,8 +226,18 @@ class _NoteTile extends StatelessWidget {
                     ?.copyWith(color: theme.colorScheme.outline)),
           ],
         ),
-        trailing: note.pinned
-            ? Icon(Icons.push_pin, size: 18, color: theme.colorScheme.primary)
+        trailing: note.pinned || note.ink.isNotEmpty
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (note.ink.isNotEmpty)
+                    Icon(Icons.draw_outlined,
+                        size: 18, color: theme.colorScheme.outline),
+                  if (note.pinned)
+                    Icon(Icons.push_pin,
+                        size: 18, color: theme.colorScheme.primary),
+                ],
+              )
             : null,
         onTap: () => openNote(context, note.id),
         onLongPress: () => _showNoteActions(context, note),

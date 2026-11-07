@@ -1,4 +1,6 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gs_note/app.dart';
 import 'package:gs_note/app_scope.dart';
@@ -6,6 +8,7 @@ import 'package:gs_note/data/note_repository.dart';
 import 'package:gs_note/data/schema.dart';
 import 'package:gs_note/data/settings_store.dart';
 import 'package:gs_note/security/app_lock.dart';
+import 'package:gs_note/ui/ink_canvas.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() {
@@ -55,6 +58,24 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('글꼴'), findsOneWidget);
     expect(find.text('크기'), findsOneWidget);
+
+    // A single S Pen tap on the text opens the input (focuses the editor).
+    final pen = await tester.createGesture(kind: PointerDeviceKind.stylus);
+    await pen.down(tester.getCenter(find.byType(QuillEditor)));
+    await pen.up();
+    await tester.pumpAndSettle();
+    expect(
+        tester.widget<QuillEditor>(find.byType(QuillEditor)).focusNode.hasFocus,
+        isTrue);
+
+    // Switch to the S Pen handwriting page and back.
+    await tester.tap(find.byTooltip('S펜 손글씨'));
+    await tester.pumpAndSettle();
+    expect(find.byType(InkCanvas), findsOneWidget);
+    expect(find.byTooltip('형광펜'), findsOneWidget);
+    await tester.tap(find.byTooltip('키보드로 쓰기'));
+    await tester.pumpAndSettle();
+    expect(find.byType(QuillEditor), findsOneWidget);
     await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();
 

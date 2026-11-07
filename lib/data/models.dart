@@ -79,6 +79,7 @@ class Note {
     required this.title,
     required this.content,
     required this.plainText,
+    this.ink = '',
     required this.pinned,
     required this.createdAt,
     required this.updatedAt,
@@ -98,6 +99,9 @@ class Note {
 
   /// Plain-text copy of [content], used for previews and search.
   final String plainText;
+
+  /// S Pen handwriting as JSON strokes (see `ink.dart`). Empty if none.
+  final String ink;
   final bool pinned;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -105,13 +109,15 @@ class Note {
   final String deviceId;
   final bool deleted;
 
-  bool get isEmpty => title.trim().isEmpty && plainText.trim().isEmpty;
+  bool get isEmpty =>
+      title.trim().isEmpty && plainText.trim().isEmpty && ink.isEmpty;
 
   Note copyWith({
     Object? folderId = _keep,
     String? title,
     String? content,
     String? plainText,
+    String? ink,
     bool? pinned,
     DateTime? updatedAt,
     String? hlc,
@@ -125,6 +131,7 @@ class Note {
         title: title ?? this.title,
         content: content ?? this.content,
         plainText: plainText ?? this.plainText,
+        ink: ink ?? this.ink,
         pinned: pinned ?? this.pinned,
         createdAt: createdAt,
         updatedAt: updatedAt ?? this.updatedAt,
@@ -139,6 +146,7 @@ class Note {
         'title': title,
         'content': content,
         'plain_text': plainText,
+        'ink': ink,
         'pinned': pinned ? 1 : 0,
         'created_at': createdAt.millisecondsSinceEpoch,
         'updated_at': updatedAt.millisecondsSinceEpoch,
@@ -153,6 +161,7 @@ class Note {
         title: row['title'] as String,
         content: row['content'] as String,
         plainText: row['plain_text'] as String,
+        ink: (row['ink'] as String?) ?? '',
         pinned: (row['pinned'] as int) == 1,
         createdAt: DateTime.fromMillisecondsSinceEpoch(row['created_at'] as int),
         updatedAt: DateTime.fromMillisecondsSinceEpoch(row['updated_at'] as int),

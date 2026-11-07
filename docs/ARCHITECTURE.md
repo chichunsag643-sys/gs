@@ -22,7 +22,7 @@ lib/
 
 | table     | purpose |
 |-----------|---------|
-| `notes`   | `id` (UUID), `folder_id`, `title`, `content` (Quill Delta JSON), `plain_text`, `pinned`, timestamps, `hlc`, `device_id`, `deleted` |
+| `notes`   | `id` (UUID), `folder_id`, `title`, `content` (Quill Delta JSON), `plain_text`, `ink` (S Pen strokes JSON, schema v2), `pinned`, timestamps, `hlc`, `device_id`, `deleted` |
 | `folders` | `id` (UUID), `name`, `sort_order`, timestamps, `hlc`, `device_id`, `deleted` |
 | `devices` | paired devices (empty until QR pairing exists): `id`, `name`, `public_key`, `last_seen_hlc` |
 | `meta`    | local-only settings: device id/name, library on/off, lock on/off, last HLC |
@@ -48,3 +48,15 @@ Rules every write follows, so sync can be added without a migration:
   per record (LWW), and call `HlcClock.receive()` on incoming stamps. If
   concurrent edits to the same note become a problem, the Delta content can
   be upgraded to a text CRDT for that field without changing the tables.
+
+## S Pen handwriting
+
+`notes.ink` holds the handwriting page as JSON (`data/ink.dart`): a list of
+strokes, each with its own UUID, tool (pen/highlighter), colour, width and
+flat `[x, y, pressure, ...]` points. Coordinates are in a fixed 1000-unit
+page width, so the drawing scales to any screen. Strokes never change once
+drawn (erasing removes whole strokes), so a later sync can merge two devices'
+drawings as a set of stroke ids instead of last-writer-wins on the whole page.
+
+On the handwriting page (`ui/ink_canvas.dart`) only the pen draws and
+fingers scroll; holding the S Pen side button erases.
