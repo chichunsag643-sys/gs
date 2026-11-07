@@ -27,23 +27,25 @@ class VoiceMemoList extends StatefulWidget {
 }
 
 class _VoiceMemoListState extends State<VoiceMemoList> {
-  final _player = AudioPlayer();
+  // Created on first play, so opening a note doesn't start the audio engine.
+  AudioPlayer? _audio;
   final _subs = <StreamSubscription<Object?>>[];
   String? _playingId;
   bool _playing = false;
   Duration _position = Duration.zero;
 
-  @override
-  void initState() {
-    super.initState();
+  AudioPlayer get _player => _audio ??= _createPlayer();
+
+  AudioPlayer _createPlayer() {
+    final player = AudioPlayer();
     _subs
-      ..add(_player.onPositionChanged.listen((d) {
+      ..add(player.onPositionChanged.listen((d) {
         if (mounted) setState(() => _position = d);
       }))
-      ..add(_player.onPlayerStateChanged.listen((s) {
+      ..add(player.onPlayerStateChanged.listen((s) {
         if (mounted) setState(() => _playing = s == PlayerState.playing);
       }))
-      ..add(_player.onPlayerComplete.listen((_) {
+      ..add(player.onPlayerComplete.listen((_) {
         if (mounted) {
           setState(() {
             _playing = false;
@@ -52,6 +54,7 @@ class _VoiceMemoListState extends State<VoiceMemoList> {
           });
         }
       }));
+    return player;
   }
 
   @override
@@ -59,7 +62,7 @@ class _VoiceMemoListState extends State<VoiceMemoList> {
     for (final s in _subs) {
       s.cancel();
     }
-    _player.dispose();
+    _audio?.dispose();
     super.dispose();
   }
 
@@ -94,7 +97,7 @@ class _VoiceMemoListState extends State<VoiceMemoList> {
     );
     if (ok != true || !mounted) return;
     if (_playingId == a.id) {
-      await _player.stop();
+      await _audio?.stop();
       _playingId = null;
     }
     if (!mounted) return;
