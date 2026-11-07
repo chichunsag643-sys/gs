@@ -1,9 +1,13 @@
+import 'dart:io';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gs_note/app.dart';
 import 'package:gs_note/app_scope.dart';
+import 'package:gs_note/audio/transcriber.dart';
+import 'package:gs_note/data/attachment_repository.dart';
 import 'package:gs_note/data/note_repository.dart';
 import 'package:gs_note/data/schema.dart';
 import 'package:gs_note/data/settings_store.dart';
@@ -17,7 +21,9 @@ void main() {
   testWidgets('create a note, open editor, switch library off', (tester) async {
     late SettingsStore settings;
     late NoteRepository repo;
+    late AttachmentRepository attachments;
     late Database db;
+    late Directory dir;
     await tester.runAsync(() async {
       db = await databaseFactoryFfi.openDatabase(
         inMemoryDatabasePath,
@@ -29,6 +35,8 @@ void main() {
       );
       settings = await SettingsStore.load(db);
       repo = await NoteRepository.load(db, settings);
+      dir = await Directory.systemTemp.createTemp('gs_note_app_test');
+      attachments = await AttachmentRepository.load(db, settings, repo, dir);
       final folder = await repo.createFolder('업무');
       final note = await repo.createNote(folderId: folder.id);
       await repo.updateNote(note.id, title: '회의 메모', plainText: '10시');
@@ -38,6 +46,8 @@ void main() {
       repo: repo,
       settings: settings,
       lock: AppLock(settings),
+      attachments: attachments,
+      voice: Transcriber(),
       child: const NoteApp(),
     ));
     await tester.pumpAndSettle();
@@ -57,6 +67,7 @@ void main() {
     await tester.tap(find.text('회의 메모'));
     await tester.pumpAndSettle();
     expect(find.text('글꼴'), findsOneWidget);
+    expect(find.byTooltip('음성 메모 녹음'), findsOneWidget);
     expect(find.text('크기'), findsOneWidget);
 
     // A single S Pen tap on the text opens the input (focuses the editor).
@@ -82,6 +93,7 @@ void main() {
     // Turn the library off: drawer disappears, notes remain.
     await tester.tap(find.byTooltip('설정'));
     await tester.pumpAndSettle();
+    expect(find.text('글자만 동기화'), findsOneWidget);
     await tester.runAsync(() => settings.setLibraryEnabled(false));
     await tester.pumpAndSettle();
     await tester.tap(find.byType(BackButton));
@@ -90,6 +102,9 @@ void main() {
     expect(find.text('메모'), findsWidgets);
     expect(find.text('회의 메모'), findsOneWidget);
 
-    await tester.runAsync(() => db.close());
+    await tester.runAsync(() async {
+      await db.close();
+      await dir.delete(recursive: true);
+    });
   });
 }

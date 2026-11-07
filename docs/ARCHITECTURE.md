@@ -24,6 +24,7 @@ lib/
 |-----------|---------|
 | `notes`   | `id` (UUID), `folder_id`, `title`, `content` (Quill Delta JSON), `plain_text`, `ink` (S Pen strokes JSON, schema v2), `pinned`, timestamps, `hlc`, `device_id`, `deleted` |
 | `folders` | `id` (UUID), `name`, `sort_order`, timestamps, `hlc`, `device_id`, `deleted` |
+| `attachments` | voice memos (schema v3): `id`, `note_id`, `kind` (`audio`), `mime`, `duration_ms`, `size_bytes`, `sha256`, timestamps, `hlc`, `device_id`, `deleted` |
 | `devices` | paired devices (empty until QR pairing exists): `id`, `name`, `public_key`, `last_seen_hlc` |
 | `meta`    | local-only settings: device id/name, library on/off, lock on/off, last HLC |
 
@@ -48,6 +49,32 @@ Rules every write follows, so sync can be added without a migration:
   per record (LWW), and call `HlcClock.receive()` on incoming stamps. If
   concurrent edits to the same note become a problem, the Delta content can
   be upgraded to a text CRDT for that field without changing the tables.
+
+## Voice memos
+
+Recording (`ui/voice_recorder_sheet.dart`, `record` package): AAC-LC mono
+64 kbps .m4a, about 0.5 MB per minute. While recording, a microphone
+foreground service (`RecordingService.kt`) keeps the mic open with the screen
+off.
+
+Storage (`data/attachment_repository.dart`): the `attachments` row is the
+synced metadata; the audio is a file `<app support>/attachments/<id>.m4a`,
+outside the database. Rows follow the same rules as notes (UUID, HLC from
+the shared clock, tombstones).
+
+Sync contract (implemented by the sync step): sync the `attachments` rows
+like any other table, then copy audio files separately by id, verified by
+`sha256`. Each device decides in its own `meta.audio_sync`:
+`text_only` (default) never downloads other devices' audio, `all` does
+(`AttachmentRepository.wantsBlobs / hasBlob / blobFile / importBlob`).
+Recordings made on a device always stay on it.
+
+Transcription (`audio/transcriber.dart` → `Transcriber.kt`): Android's
+`SpeechRecognizer.createOnDeviceSpeechRecognizer` only (no network
+fallback). The .m4a is decoded with MediaCodec to 16 kHz mono PCM and fed
+through a pipe (`EXTRA_AUDIO_SOURCE`, segmented session), so it needs
+Android 13+. If the Korean model is missing the system is asked to download
+it. The text is appended to the note itself, so it syncs with the note.
 
 ## S Pen handwriting
 

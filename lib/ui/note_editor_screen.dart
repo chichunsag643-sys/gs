@@ -5,12 +5,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 
 import '../app_scope.dart';
+import '../audio/transcriber.dart';
+import '../data/attachment_repository.dart';
 import '../data/ink.dart';
+import '../data/models.dart';
 import '../data/note_repository.dart';
 import 'folder_dialogs.dart';
 import 'ink_canvas.dart';
 import 'rich_text_toolbar.dart';
 import 'stylus_text_selection.dart';
+import 'voice_memo_list.dart';
+import 'voice_recorder_sheet.dart';
 
 class NoteEditorScreen extends StatefulWidget {
   const NoteEditorScreen(
@@ -26,6 +31,8 @@ class NoteEditorScreen extends StatefulWidget {
 
 class _NoteEditorScreenState extends State<NoteEditorScreen> {
   late final NoteRepository _repo;
+  late final AttachmentRepository _attachments;
+  late final Transcriber _voice;
   late final QuillController _quill;
   late final TextEditingController _title;
   late final InkController _ink;
@@ -43,7 +50,10 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     super.didChangeDependencies();
     if (_initialized) return;
     _initialized = true;
-    _repo = AppScope.of(context).repo;
+    final scope = AppScope.of(context);
+    _repo = scope.repo;
+    _attachments = scope.attachments;
+    _voice = scope.voice;
     final note = _repo.note(widget.noteId)!;
     _title = TextEditingController(text: note.title)
       ..addListener(_scheduleSave);
@@ -110,10 +120,97 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   Future<void> _finish() async {
     await _save();
     final note = _repo.note(widget.noteId);
-    if (note != null && note.isEmpty) {
+    if (note != null && note.isEmpty && !_attachments.hasAny(widget.noteId)) {
       _deleted = true;
       await _repo.deleteNote(widget.noteId);
     }
+  }
+
+  // ---- Voice memos ----------------------------------------------------------
+
+  String? _transcribingId;
+
+  Future<void> _recordVoice() async {
+    _editorFocus.unfocus();
+    final recorded = await showVoiceRecorder(context);
+    if (recorded == null || !mounted) return;
+    final attachment = await _attachments.addRecording(
+        widget.noteId, recorded.path,
+        duration: recorded.duration);
+    if (!mounted) return;
+    if (AppScope.of(context).settings.autoTranscribe) {
+      await _transcribe(attachment);
+    }
+  }
+
+  void _snack(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  /// Turns [a] into text on this device and adds it to the end of the note.
+  Future<void> _transcribe(Attachment a) async {
+    if (_transcribingId != null || !_attachments.isLocal(a.id)) return;
+    final availability = await _voice.availability();
+    if (availability != TranscribeAvailability.ok) {
+      _snack(availability.message);
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _transcribingId = a.id);
+    final soFar = ValueNotifier<String>('');
+    final dialog = showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (d) => AlertDialog(
+        title: const Text('받아쓰는 중'),
+        content: ValueListenableBuilder<String>(
+          valueListenable: soFar,
+          builder: (_, text, _) => Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const LinearProgressIndicator(),
+              const SizedBox(height: 12),
+              Text(text.isEmpty ? '기기 안에서 글자로 바꾸고 있습니다. 인터넷은 쓰지 않습니다.' : text,
+                  maxLines: 8, overflow: TextOverflow.ellipsis),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: _voice.cancel, child: const Text('취소')),
+        ],
+      ),
+    );
+    String? text;
+    try {
+      text = await _voice.transcribe(_attachments.audioPath(a.id),
+          onSegment: (t) => soFar.value = t);
+    } on TranscribeException catch (e) {
+      if (e.code != 'cancelled') _snack(e.message);
+    } finally {
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        setState(() => _transcribingId = null);
+      }
+      await dialog;
+      soFar.dispose();
+    }
+    if (text == null || !mounted) return;
+    if (text.isEmpty) {
+      _snack('녹음에서 알아들을 수 있는 말이 없었습니다.');
+      return;
+    }
+    _appendText('🎙 음성 메모 (${formatDuration(a.duration)})\n$text');
+  }
+
+  void _appendText(String text) {
+    final doc = _quill.document;
+    final end = doc.length - 1; // before the document's final newline
+    final insert = doc.toPlainText().trim().isEmpty ? text : '\n$text';
+    _quill.replaceText(end, 0, insert,
+        TextSelection.collapsed(offset: end + insert.length));
+    _scheduleSave();
   }
 
   @override
@@ -148,6 +245,11 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                 : null,
             actions: [
               IconButton(
+                tooltip: '음성 메모 녹음',
+                icon: const Icon(Icons.mic_none),
+                onPressed: _transcribingId == null ? _recordVoice : null,
+              ),
+              IconButton(
                 tooltip: _handwriting ? '키보드로 쓰기' : 'S펜 손글씨',
                 icon: Icon(
                     _handwriting ? Icons.keyboard_outlined : Icons.draw_outlined),
@@ -167,6 +269,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                   if (!await confirmDeleteNote(context)) return;
                   _deleted = true;
                   _saveTimer?.cancel();
+                  await _attachments.deleteForNote(widget.noteId);
                   await _repo.deleteNote(widget.noteId);
                   if (context.mounted) Navigator.of(context).pop();
                 },
@@ -188,6 +291,11 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                     textInputAction: TextInputAction.next,
                     onSubmitted: (_) => _editorFocus.requestFocus(),
                   ),
+                ),
+                VoiceMemoList(
+                  noteId: widget.noteId,
+                  transcribingId: _transcribingId,
+                  onTranscribe: _transcribe,
                 ),
                 if (_handwriting) ...[
                   Expanded(child: InkCanvas(controller: _ink)),
