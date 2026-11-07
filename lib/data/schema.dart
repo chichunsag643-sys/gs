@@ -1,6 +1,6 @@
 import 'package:sqflite_common/sqlite_api.dart';
 
-const int schemaVersion = 1;
+const int schemaVersion = 2;
 
 /// Creates or upgrades the schema. Kept free of plugin imports so tests can
 /// run it against an in-memory database.
@@ -24,6 +24,7 @@ Future<void> createSchema(Database db, int version) async {
       title TEXT NOT NULL DEFAULT '',
       content TEXT NOT NULL DEFAULT '',
       plain_text TEXT NOT NULL DEFAULT '',
+      ink TEXT NOT NULL DEFAULT '',
       pinned INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
@@ -54,5 +55,9 @@ Future<void> createSchema(Database db, int version) async {
 }
 
 Future<void> upgradeSchema(Database db, int oldVersion, int newVersion) async {
-  // Future migrations go here, one `if (oldVersion < N)` block per version.
+  // One `if (oldVersion < N)` block per version.
+  if (oldVersion < 2) {
+    // S Pen handwriting, stored as JSON strokes (see data/ink.dart).
+    await db.execute("ALTER TABLE notes ADD COLUMN ink TEXT NOT NULL DEFAULT ''");
+  }
 }

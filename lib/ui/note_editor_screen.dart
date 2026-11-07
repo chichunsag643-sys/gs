@@ -5,13 +5,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 
 import '../app_scope.dart';
+import '../data/ink.dart';
 import '../data/note_repository.dart';
 import 'folder_dialogs.dart';
+import 'ink_canvas.dart';
 import 'rich_text_toolbar.dart';
+import 'stylus_text_selection.dart';
 
 class NoteEditorScreen extends StatefulWidget {
-  const NoteEditorScreen({super.key, required this.noteId});
+  const NoteEditorScreen(
+      {super.key, required this.noteId, this.startInHandwriting = false});
   final String noteId;
+
+  /// Open on the S Pen handwriting page instead of the text page.
+  final bool startInHandwriting;
 
   @override
   State<NoteEditorScreen> createState() => _NoteEditorScreenState();
@@ -21,7 +28,10 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   late final NoteRepository _repo;
   late final QuillController _quill;
   late final TextEditingController _title;
+  late final InkController _ink;
+  final _editorKey = GlobalKey<EditorState>();
   final _editorFocus = FocusNode();
+  bool _handwriting = false;
   final _editorScroll = ScrollController();
   StreamSubscription<DocChange>? _docSub;
   Timer? _saveTimer;
@@ -42,7 +52,12 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       selection: const TextSelection.collapsed(offset: 0),
     );
     _docSub = _quill.document.changes.listen((_) => _scheduleSave());
-    if (note.isEmpty) {
+    _ink = InkController(InkDrawing.decode(note.ink))
+      ..addListener(_onInkChanged);
+    // A note that only has handwriting opens on the handwriting page.
+    _handwriting = widget.startInHandwriting ||
+        (note.ink.isNotEmpty && note.plainText.trim().isEmpty);
+    if (note.isEmpty && !_handwriting) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _editorFocus.requestFocus();
       });
@@ -59,6 +74,20 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     }
   }
 
+  int _savedInkRevision = 0;
+
+  void _onInkChanged() {
+    // Tool/colour changes also notify; only strokes need saving.
+    if (_ink.revision == _savedInkRevision) return;
+    _savedInkRevision = _ink.revision;
+    _scheduleSave();
+  }
+
+  void _setHandwriting(bool on) {
+    if (on) _editorFocus.unfocus();
+    setState(() => _handwriting = on);
+  }
+
   void _scheduleSave() {
     _saveTimer?.cancel();
     _saveTimer = Timer(const Duration(milliseconds: 600), _save);
@@ -73,6 +102,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       title: _title.text,
       content: plain.isEmpty ? '' : jsonEncode(_quill.document.toDelta().toJson()),
       plainText: plain,
+      ink: _ink.drawing.encode(),
     );
   }
 
@@ -91,6 +121,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     _finish();
     _docSub?.cancel();
     _quill.dispose();
+    _ink.dispose();
     _title.dispose();
     _editorFocus.dispose();
     _editorScroll.dispose();
@@ -116,6 +147,12 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                   )
                 : null,
             actions: [
+              IconButton(
+                tooltip: _handwriting ? '키보드로 쓰기' : 'S펜 손글씨',
+                icon: Icon(
+                    _handwriting ? Icons.keyboard_outlined : Icons.draw_outlined),
+                onPressed: () => _setHandwriting(!_handwriting),
+              ),
               if (note != null)
                 IconButton(
                   tooltip: note.pinned ? '고정 해제' : '맨 위에 고정',
@@ -152,23 +189,35 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                     onSubmitted: (_) => _editorFocus.requestFocus(),
                   ),
                 ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: QuillEditor(
-                      controller: _quill,
-                      focusNode: _editorFocus,
-                      scrollController: _editorScroll,
-                      config: const QuillEditorConfig(
-                        placeholder: '메모를 입력하세요',
-                        padding: EdgeInsets.only(bottom: 24),
-                        expands: true,
+                if (_handwriting) ...[
+                  Expanded(child: InkCanvas(controller: _ink)),
+                  const Divider(height: 1),
+                  InkToolbar(controller: _ink),
+                ] else ...[
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: StylusTextSelection(
+                        editorKey: _editorKey,
+                        focusNode: _editorFocus,
+                        child: QuillEditor(
+                          controller: _quill,
+                          focusNode: _editorFocus,
+                          scrollController: _editorScroll,
+                          config: QuillEditorConfig(
+                            editorKey: _editorKey,
+                            placeholder: '메모를 입력하세요',
+                            padding: const EdgeInsets.only(bottom: 24),
+                            expands: true,
+                            onTapOutside: keepFocusForPenOnTapOutside,
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const Divider(height: 1),
-                RichTextToolbar(controller: _quill),
+                  const Divider(height: 1),
+                  RichTextToolbar(controller: _quill),
+                ],
               ],
             ),
           ),

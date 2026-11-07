@@ -105,6 +105,7 @@ class NoteRepository extends ChangeNotifier {
     String? title,
     String? content,
     String? plainText,
+    String? ink,
     Object? folderId = _keep,
     bool? pinned,
   }) async {
@@ -113,6 +114,7 @@ class NoteRepository extends ChangeNotifier {
     final changed = (title != null && title != old.title) ||
         (content != null && content != old.content) ||
         (plainText != null && plainText != old.plainText) ||
+        (ink != null && ink != old.ink) ||
         (!identical(folderId, _keep) && folderId != old.folderId) ||
         (pinned != null && pinned != old.pinned);
     if (!changed) return old;
@@ -120,6 +122,7 @@ class NoteRepository extends ChangeNotifier {
       title: title,
       content: content,
       plainText: plainText,
+      ink: ink,
       folderId: folderId,
       pinned: pinned,
       updatedAt: DateTime.now(),
