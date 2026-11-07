@@ -27,6 +27,9 @@ jobs:
       - run: flutter analyze
       - run: flutter test
       - run: flutter build apk --release
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
       - run: cp build/app/outputs/flutter-apk/app-release.apk gs-note.apk
       - uses: actions/upload-artifact@v4
         with:
@@ -35,8 +38,13 @@ jobs:
       # Each push to main publishes a release with the APK attached, so it can be
       # downloaded straight from a phone:
       # https://github.com/<owner>/<repo>/releases/latest/download/gs-note.apk
+      # Only publish when the APK is signed with the fixed release key; a
+      # debug-signed APK could not be installed as an update.
+      - name: Check release signing key
+        id: signing
+        run: echo "ready=${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' }}" >> "$GITHUB_OUTPUT"
       - name: Publish release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.signing.outputs.ready == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}

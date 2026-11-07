@@ -1,3 +1,5 @@
+import java.util.Base64
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -30,11 +32,35 @@ android {
         versionName = flutter.versionName
     }
 
+    // Release builds must always be signed with the same key, or Android
+    // refuses to install an update over the existing app (and the only way
+    // out would be uninstalling, which deletes the on-device notes).
+    // CI provides the key through two repository secrets:
+    //   ANDROID_KEYSTORE_BASE64   - base64 of the PKCS12 keystore (alias "gsnote")
+    //   ANDROID_KEYSTORE_PASSWORD - its password
+    // Without them, release builds fall back to the local debug key.
+    val keystoreBase64 = System.getenv("ANDROID_KEYSTORE_BASE64")?.trim()
+    val keystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")?.trim()
+    val hasReleaseKey = !keystoreBase64.isNullOrEmpty() && !keystorePassword.isNullOrEmpty()
+
+    signingConfigs {
+        if (hasReleaseKey) {
+            create("release") {
+                val file = layout.buildDirectory.file("release.p12").get().asFile
+                file.parentFile.mkdirs()
+                file.writeBytes(Base64.getMimeDecoder().decode(keystoreBase64))
+                storeFile = file
+                storeType = "PKCS12"
+                storePassword = keystorePassword
+                keyAlias = "gsnote"
+                keyPassword = keystorePassword
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName(if (hasReleaseKey) "release" else "debug")
         }
     }
 }
