@@ -32,11 +32,11 @@ jobs:
         with:
           name: gs-note-apk
           path: gs-note.apk
-      # Each push publishes a release with the APK attached, so it can be
+      # Each push to main publishes a release with the APK attached, so it can be
       # downloaded straight from a phone:
       # https://github.com/<owner>/<repo>/releases/latest/download/gs-note.apk
       - name: Publish release
-        if: github.event_name != 'pull_request'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
