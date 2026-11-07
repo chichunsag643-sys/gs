@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../app_scope.dart';
+import 'sync_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -69,12 +70,30 @@ class SettingsScreen extends StatelessWidget {
             const ListTile(
               leading: Icon(Icons.lock_outline),
               title: Text('저장 위치'),
-              subtitle: Text('모든 메모는 이 기기에만 암호화되어 저장됩니다. 외부 서버로 전송되지 않습니다.'),
+              subtitle: Text('모든 메모는 내 기기에만 암호화되어 저장됩니다. 동기화도 내 기기끼리 직접, 암호화해서 주고받으며 외부 서버를 거치지 않습니다.'),
             ),
-            const ListTile(
-              leading: Icon(Icons.sync_disabled),
-              title: Text('기기 간 동기화'),
-              subtitle: Text('다음 단계에서 추가됩니다 (QR 기기 추가, 같은 Wi-Fi / Tailscale).'),
+            ListenableBuilder(
+              listenable: scope.sync,
+              builder: (context, _) {
+                final sync = scope.sync;
+                final n = sync.peers.length;
+                return ListTile(
+                  leading: Icon(sync.paired && settings.syncEnabled
+                      ? Icons.sync
+                      : Icons.sync_disabled),
+                  title: const Text('기기 동기화'),
+                  subtitle: Text(!sync.paired
+                      ? 'QR코드로 내 다른 기기를 연결합니다 (같은 Wi-Fi / Tailscale).'
+                      : !settings.syncEnabled
+                          ? '꺼짐'
+                          : n == 0
+                              ? '연결된 기기 없음'
+                              : '기기 $n대와 연결됨'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const SyncScreen())),
+                );
+              },
             ),
           ],
         ),

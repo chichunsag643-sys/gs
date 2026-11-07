@@ -38,12 +38,19 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   bool _initialized = false;
   bool _deleted = false;
 
+  /// Stamp of the version shown in the editor. A different stamp from
+  /// another device means the note was edited there (sync).
+  String _shownHlc = '';
+  late final String _myDeviceId;
+  bool _applyingRemote = false;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_initialized) return;
     _initialized = true;
     _repo = AppScope.of(context).repo;
+    _myDeviceId = AppScope.of(context).settings.deviceId;
     final note = _repo.note(widget.noteId)!;
     _title = TextEditingController(text: note.title)
       ..addListener(_scheduleSave);
@@ -51,7 +58,9 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       document: _loadDocument(note.content),
       selection: const TextSelection.collapsed(offset: 0),
     );
-    _docSub = _quill.document.changes.listen((_) => _scheduleSave());
+    _docSub = _quill.document.changes.listen((_) => _onDocChanged());
+    _shownHlc = note.hlc;
+    _repo.addListener(_onRepoChanged);
     _ink = InkController(InkDrawing.decode(note.ink))
       ..addListener(_onInkChanged);
     // A note that only has handwriting opens on the handwriting page.
@@ -76,11 +85,53 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
 
   int _savedInkRevision = 0;
 
+  void _onDocChanged() {
+    if (!_applyingRemote) _scheduleSave();
+  }
+
+  /// Shows an edit that arrived from another device, unless the user is in
+  /// the middle of typing here (then their save wins as the newer edit).
+  void _onRepoChanged() {
+    final note = _repo.note(widget.noteId);
+    if (note == null || note.hlc == _shownHlc) return;
+    if (note.deviceId == _myDeviceId) return;
+    if (_saveTimer?.isActive ?? false) return;
+    _shownHlc = note.hlc;
+    _applyingRemote = true;
+    try {
+      if (_title.text != note.title) {
+        _title.removeListener(_scheduleSave);
+        _title.text = note.title;
+        _title.addListener(_scheduleSave);
+      }
+      final shown = _quill.document.toPlainText().trim();
+      final current =
+          shown.isEmpty ? '' : jsonEncode(_quill.document.toDelta().toJson());
+      if (current != note.content) {
+        final offset = _quill.selection.baseOffset;
+        _docSub?.cancel();
+        _quill.document = _loadDocument(note.content);
+        _docSub = _quill.document.changes.listen((_) => _onDocChanged());
+        final len = _quill.document.length - 1;
+        _quill.updateSelection(
+          TextSelection.collapsed(offset: offset.clamp(0, len < 0 ? 0 : len)),
+          ChangeSource.silent,
+        );
+      }
+      if (_ink.drawing.encode() != note.ink) {
+        _ink.replaceDrawing(InkDrawing.decode(note.ink));
+        _savedInkRevision = _ink.revision;
+      }
+    } finally {
+      _applyingRemote = false;
+    }
+  }
+
   void _onInkChanged() {
     // Tool/colour changes also notify; only strokes need saving.
     if (_ink.revision == _savedInkRevision) return;
     _savedInkRevision = _ink.revision;
-    _scheduleSave();
+    if (!_applyingRemote) _scheduleSave();
   }
 
   void _setHandwriting(bool on) {
@@ -97,13 +148,14 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     _saveTimer?.cancel();
     if (_deleted) return;
     final plain = _quill.document.toPlainText().trim();
-    await _repo.updateNote(
+    final saved = await _repo.updateNote(
       widget.noteId,
       title: _title.text,
       content: plain.isEmpty ? '' : jsonEncode(_quill.document.toDelta().toJson()),
       plainText: plain,
       ink: _ink.drawing.encode(),
     );
+    if (saved != null) _shownHlc = saved.hlc;
   }
 
   /// Saves on leave, and drops the note if it was left empty.
@@ -118,6 +170,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
 
   @override
   void dispose() {
+    _repo.removeListener(_onRepoChanged);
     _finish();
     _docSub?.cancel();
     _quill.dispose();

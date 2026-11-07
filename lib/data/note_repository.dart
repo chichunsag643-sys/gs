@@ -214,6 +214,52 @@ class NoteRepository extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ---- Sync ----------------------------------------------------------------
+
+  /// A new HLC stamp for a record written outside this repository (e.g. the
+  /// device list kept by sync).
+  Future<String> newStamp() async => (await _stamp()).toString();
+
+  /// Records that were merged in from another device. The database already
+  /// holds them; this refreshes the in-memory copy and moves our clock past
+  /// the remote stamps so later local edits order after them.
+  Future<void> applyRemote({
+    Iterable<Note> notes = const [],
+    Iterable<Folder> folders = const [],
+  }) async {
+    Hlc? newest;
+    void observe(String hlc) {
+      try {
+        final h = Hlc.parse(hlc);
+        if (newest == null || h > newest!) newest = h;
+      } on FormatException {
+        // A malformed stamp only loses ordering hints; the row still merged.
+      }
+    }
+
+    for (final n in notes) {
+      observe(n.hlc);
+      if (n.deleted) {
+        _notes.remove(n.id);
+      } else {
+        _notes[n.id] = n;
+      }
+    }
+    for (final f in folders) {
+      observe(f.hlc);
+      if (f.deleted) {
+        _folders.remove(f.id);
+      } else {
+        _folders[f.id] = f;
+      }
+    }
+    if (newest != null) {
+      final h = _clock.receive(newest!);
+      await _settings.setLastHlc(h.toString());
+    }
+    notifyListeners();
+  }
+
   Future<Hlc> _stamp() async {
     final hlc = _clock.now();
     await _settings.setLastHlc(hlc.toString());

@@ -24,7 +24,8 @@ lib/
 |-----------|---------|
 | `notes`   | `id` (UUID), `folder_id`, `title`, `content` (Quill Delta JSON), `plain_text`, `ink` (S Pen strokes JSON, schema v2), `pinned`, timestamps, `hlc`, `device_id`, `deleted` |
 | `folders` | `id` (UUID), `name`, `sort_order`, timestamps, `hlc`, `device_id`, `deleted` |
-| `devices` | paired devices (empty until QR pairing exists): `id`, `name`, `public_key`, `last_seen_hlc` |
+| `devices` | paired devices (synced): `id`, `name`, `addresses`, `port`, `platform`, `hlc`, `device_id`, `deleted` |
+| `peer_state` | local-only sync progress per peer: cursors, last address, manual address, last error |
 | `meta`    | local-only settings: device id/name, library on/off, lock on/off, last HLC |
 
 Rules every write follows, so sync can be added without a migration:
@@ -38,16 +39,54 @@ Rules every write follows, so sync can be added without a migration:
 4. **Per-device settings are not synced** — library on/off and the lock live
    in `meta`, so a tablet can run notepad-only while the phone uses folders.
 
-## Planned sync (later steps)
+## Sync (lib/sync/)
 
-- Transport: devices find each other on the LAN (mDNS) or over Tailscale
-  (MagicDNS / 100.x addresses); no server stores data.
-- Pairing: QR code carries device id, address and a public key; stored in
-  `devices`.
-- Merge: exchange records with `hlc > last_seen_hlc`, keep the higher HLC
-  per record (LWW), and call `HlcClock.receive()` on incoming stamps. If
-  concurrent edits to the same note become a problem, the Delta content can
-  be upgraded to a text CRDT for that field without changing the tables.
+```
+sync/
+  sync_service.dart   server, client, pairing, LAN beacon, scheduling
+  sync_store.dart     change feed (seq), LWW merge, device list, peer cursors
+  transport.dart      length-prefixed TCP frames, local/Tailscale addresses
+  crypto.dart         AES-256-GCM (package:cryptography)
+  pairing.dart        QR invite format, one-time pairing window
+  blob_store.dart     interface for attachment files (voice memos)
+ui/sync_screen.dart   설정 → 기기 동기화, QR show/scan
+```
+
+- **Transport**: every device listens on TCP 47800 while the app is open.
+  One request frame, one reply frame per connection:
+  `[key id: 1 byte][length: 4 bytes][AES-GCM sealed JSON]`. Peers are
+  reached at the addresses they publish (LAN first, Tailscale 100.64/10
+  last), the last address that worked, or one the user typed in. On the
+  same Wi-Fi an encrypted UDP broadcast beacon (47801) finds changed IPs.
+- **Change feed**: schema v3 adds a local `seq` column to every synced table,
+  stamped by SQLite triggers from `sync_counter` on every insert/update,
+  including merged rows. A peer asks for "rows with seq > N". HLC alone
+  can't do this, because merged rows keep their original, possibly older,
+  HLC. New synced tables call `addSyncTracking(db, table)` in their
+  migration and need nothing else.
+- **Exchange**: the caller sends its rows since the peer's last ack plus its
+  cursor into the peer's feed; the reply carries the peer's rows past that
+  cursor and an ack. Batches of 300 repeat until both sides are done.
+  Cursors live in the local-only `peer_state` table.
+- **Merge**: per record, higher HLC wins; equal or older is ignored, so
+  repeats are no-ops and echoes stop after one hop. Merged stamps go
+  through `HlcClock.receive()`. Unknown columns from newer app versions are
+  dropped.
+- **When**: local edits push to all peers after 0.7 s; merges are relayed
+  to the other peers the same way; every 30 s and on app resume a full
+  round runs, which also pulls what was missed while offline.
+- **Pairing**: the QR code has the host's id, addresses, port and a one-time
+  32-byte key valid while the QR screen is open (max 10 min). The joining
+  device sends its device row sealed with that key; the host replies with
+  the group key and the device list. `devices` is a synced table, so every
+  device learns about every other one. The group key never appears in the
+  QR code.
+- **Removal**: tombstones the device row; devices refuse its requests and
+  tell it, and it leaves the group. (It keeps the notes it already had.)
+- **Attachments**: the `attachments` rows sync like notes. Files move
+  separately (`type: blob`, checked by sha256) and only to devices whose
+  `audio_sync` setting is `all`. The voice memo feature implements
+  `SyncBlobStore`.
 
 ## S Pen handwriting
 

@@ -43,6 +43,10 @@ dependencies:
   uuid: ^4.6.0
   path: ^1.9.1
   sqflite_common: ^2.5.15
+  cryptography: ^2.9.0
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^7.5.0
+  crypto: ^3.0.8
 dev_dependencies:
   flutter_test:
     sdk: flutter

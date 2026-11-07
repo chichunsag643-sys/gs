@@ -15,6 +15,8 @@ class SettingsStore extends ChangeNotifier {
   static const _libraryEnabled = 'library_enabled';
   static const _lockEnabled = 'lock_enabled';
   static const _lastHlc = 'last_hlc';
+  static const _audioSync = 'audio_sync';
+  static const _syncEnabled = 'sync_enabled';
 
   static Future<SettingsStore> load(Database db) async {
     final rows = await db.query('meta');
@@ -41,6 +43,15 @@ class SettingsStore extends ChangeNotifier {
   /// Fingerprint / device credential lock.
   bool get lockEnabled => _values[_lockEnabled] == '1';
   Future<void> setLockEnabled(bool v) => _set(_lockEnabled, v ? '1' : '0');
+
+  /// Whether this device syncs with its paired devices.
+  bool get syncEnabled => _values[_syncEnabled] != '0';
+  Future<void> setSyncEnabled(bool v) => _set(_syncEnabled, v ? '1' : '0');
+
+  /// Voice memo files: 'text_only' keeps only the note text and the memo's
+  /// details on this device; 'all' also downloads the audio files.
+  String get audioSync => _values[_audioSync] ?? 'text_only';
+  Future<void> setAudioSync(String v) => _set(_audioSync, v);
 
   String? get lastHlc => _values[_lastHlc];
   Future<void> setLastHlc(String hlc) => _set(_lastHlc, hlc, notify: false);

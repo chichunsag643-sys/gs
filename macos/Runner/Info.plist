@@ -28,5 +28,9 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSCameraUsageDescription</key>
+	<string>다른 기기의 QR코드를 스캔해 기기를 연결합니다.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>같은 Wi-Fi에 있는 내 다른 기기와 메모를 직접 동기화합니다.</string>
 </dict>
 </plist>
