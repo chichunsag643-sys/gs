@@ -172,3 +172,93 @@ class Note {
 }
 
 const Object _keep = Object();
+
+/// A voice recording attached to a note. The audio is stored as a file
+/// outside the database (see `attachment_repository.dart`); this record is
+/// the synced metadata.
+class Attachment {
+  const Attachment({
+    required this.id,
+    required this.noteId,
+    this.kind = kindAudio,
+    this.mime = 'audio/mp4',
+    required this.durationMs,
+    required this.sizeBytes,
+    required this.sha256,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.hlc,
+    required this.deviceId,
+    this.deleted = false,
+  });
+
+  static const kindAudio = 'audio';
+
+  final String id;
+  final String noteId;
+  final String kind;
+  final String mime;
+  final int durationMs;
+  final int sizeBytes;
+
+  /// Hex SHA-256 of the audio file, so a copied file can be verified.
+  final String sha256;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final String hlc;
+  final String deviceId;
+  final bool deleted;
+
+  Duration get duration => Duration(milliseconds: durationMs);
+
+  Attachment copyWith({
+    DateTime? updatedAt,
+    String? hlc,
+    String? deviceId,
+    bool? deleted,
+  }) =>
+      Attachment(
+        id: id,
+        noteId: noteId,
+        kind: kind,
+        mime: mime,
+        durationMs: durationMs,
+        sizeBytes: sizeBytes,
+        sha256: sha256,
+        createdAt: createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+        hlc: hlc ?? this.hlc,
+        deviceId: deviceId ?? this.deviceId,
+        deleted: deleted ?? this.deleted,
+      );
+
+  Map<String, Object?> toRow() => {
+        'id': id,
+        'note_id': noteId,
+        'kind': kind,
+        'mime': mime,
+        'duration_ms': durationMs,
+        'size_bytes': sizeBytes,
+        'sha256': sha256,
+        'created_at': createdAt.millisecondsSinceEpoch,
+        'updated_at': updatedAt.millisecondsSinceEpoch,
+        'hlc': hlc,
+        'device_id': deviceId,
+        'deleted': deleted ? 1 : 0,
+      };
+
+  factory Attachment.fromRow(Map<String, Object?> row) => Attachment(
+        id: row['id'] as String,
+        noteId: row['note_id'] as String,
+        kind: row['kind'] as String,
+        mime: row['mime'] as String,
+        durationMs: row['duration_ms'] as int,
+        sizeBytes: row['size_bytes'] as int,
+        sha256: row['sha256'] as String,
+        createdAt: DateTime.fromMillisecondsSinceEpoch(row['created_at'] as int),
+        updatedAt: DateTime.fromMillisecondsSinceEpoch(row['updated_at'] as int),
+        hlc: row['hlc'] as String,
+        deviceId: row['device_id'] as String,
+        deleted: (row['deleted'] as int) == 1,
+      );
+}

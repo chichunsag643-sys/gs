@@ -43,6 +43,10 @@ dependencies:
   uuid: ^4.6.0
   path: ^1.9.1
   sqflite_common: ^2.5.15
+  record: ^7.1.2
+  audioplayers: ^6.8.1
+  path_provider: ^2.1.6
+  crypto: ^3.0.8
 dev_dependencies:
   flutter_test:
     sdk: flutter

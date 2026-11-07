@@ -214,6 +214,10 @@ class NoteRepository extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// A fresh HLC stamp from this device's clock, for other record types
+  /// (e.g. voice memo attachments) that must order with notes and folders.
+  Future<String> newStamp() async => (await _stamp()).toString();
+
   Future<Hlc> _stamp() async {
     final hlc = _clock.now();
     await _settings.setLastHlc(hlc.toString());

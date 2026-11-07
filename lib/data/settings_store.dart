@@ -15,6 +15,8 @@ class SettingsStore extends ChangeNotifier {
   static const _libraryEnabled = 'library_enabled';
   static const _lockEnabled = 'lock_enabled';
   static const _lastHlc = 'last_hlc';
+  static const _audioSync = 'audio_sync';
+  static const _autoTranscribe = 'auto_transcribe';
 
   static Future<SettingsStore> load(Database db) async {
     final rows = await db.query('meta');
@@ -41,6 +43,25 @@ class SettingsStore extends ChangeNotifier {
   /// Fingerprint / device credential lock.
   bool get lockEnabled => _values[_lockEnabled] == '1';
   Future<void> setLockEnabled(bool v) => _set(_lockEnabled, v ? '1' : '0');
+
+  /// Whether this device keeps voice memo audio recorded on other devices.
+  ///
+  /// * `text_only` (default): only the transcript and the recording's details
+  ///   arrive; the audio stays on the devices that have it.
+  /// * `all`: audio files are copied to this device too.
+  ///
+  /// Recordings made on this device are always kept here.
+  String get audioSync =>
+      _values[_audioSync] == audioSyncAll ? audioSyncAll : audioSyncTextOnly;
+  Future<void> setAudioSync(String v) => _set(_audioSync, v);
+
+  static const audioSyncTextOnly = 'text_only';
+  static const audioSyncAll = 'all';
+
+  /// Turn a new recording into text right after it stops.
+  bool get autoTranscribe => _values[_autoTranscribe] != '0';
+  Future<void> setAutoTranscribe(bool v) =>
+      _set(_autoTranscribe, v ? '1' : '0');
 
   String? get lastHlc => _values[_lastHlc];
   Future<void> setLastHlc(String hlc) => _set(_lastHlc, hlc, notify: false);

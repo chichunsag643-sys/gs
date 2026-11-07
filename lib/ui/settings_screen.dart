@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../app_scope.dart';
+import '../data/settings_store.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -12,7 +13,7 @@ class SettingsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('설정')),
       body: ListenableBuilder(
-        listenable: settings,
+        listenable: Listenable.merge([settings, scope.attachments]),
         builder: (context, _) => ListView(
           children: [
             SwitchListTile(
@@ -38,6 +39,44 @@ class SettingsScreen extends StatelessWidget {
                 }
                 await lock.setEnabled(v);
               },
+            ),
+            const Divider(),
+            const _SectionTitle('음성 메모'),
+            SwitchListTile(
+              secondary: const Icon(Icons.subtitles_outlined),
+              title: const Text('녹음 후 바로 받아쓰기'),
+              subtitle: const Text('녹음을 마치면 기기 안에서 글자로 바꿔 메모에 넣습니다. 인터넷을 쓰지 않습니다.'),
+              value: settings.autoTranscribe,
+              onChanged: settings.setAutoTranscribe,
+            ),
+            RadioGroup<String>(
+              groupValue: settings.audioSync,
+              onChanged: (v) {
+                if (v != null) settings.setAudioSync(v);
+              },
+              child: const Column(
+                children: [
+                  RadioListTile<String>(
+                    value: SettingsStore.audioSyncTextOnly,
+                    secondary: Icon(Icons.text_fields),
+                    title: Text('글자만 동기화'),
+                    subtitle: Text('다른 기기의 녹음은 받아쓴 글자만 가져옵니다. 음성 파일은 녹음한 기기에 남습니다.'),
+                  ),
+                  RadioListTile<String>(
+                    value: SettingsStore.audioSyncAll,
+                    secondary: Icon(Icons.graphic_eq),
+                    title: Text('음성 파일도 이 기기에 저장'),
+                    subtitle: Text('다른 기기에서 녹음한 음성도 이 기기로 가져와 재생할 수 있습니다. 저장공간을 더 씁니다.'),
+                  ),
+                ],
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.sd_storage_outlined),
+              title: const Text('이 기기의 음성 파일'),
+              subtitle: Text(
+                  '${scope.attachments.localCount}개 · ${_formatBytes(scope.attachments.localBytes)}'
+                  ' (1분에 약 0.5MB)'),
             ),
             const Divider(),
             ListTile(
@@ -81,4 +120,27 @@ class SettingsScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+        child: Text(text,
+            style: Theme.of(context)
+                .textTheme
+                .labelLarge
+                ?.copyWith(color: Theme.of(context).colorScheme.primary)),
+      );
+}
+
+String _formatBytes(int bytes) {
+  if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(0)}KB';
+  if (bytes < 1024 * 1024 * 1024) {
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)}MB';
+  }
+  return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)}GB';
 }
