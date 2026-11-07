@@ -99,6 +99,44 @@ class NoteRepository extends ChangeNotifier {
     return note;
   }
 
+  /// Saves a note brought in from a file or another app. Keeps the original
+  /// dates when known; the sync stamp is always new, so the note syncs.
+  Future<Note> importNote({
+    required String title,
+    required String content,
+    required String plainText,
+    String? folderId,
+    bool pinned = false,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) async {
+    final now = DateTime.now();
+    final created = createdAt ?? updatedAt ?? now;
+    final note = Note(
+      id: _uuid.v4(),
+      folderId: folderId,
+      title: title,
+      content: content,
+      plainText: plainText,
+      pinned: pinned,
+      createdAt: created,
+      updatedAt: updatedAt ?? created,
+      hlc: (await _stamp()).toString(),
+      deviceId: _settings.deviceId,
+    );
+    await _writeNote(note);
+    return note;
+  }
+
+  /// The folder named [name], created if there is none.
+  Future<Folder> folderNamed(String name) async {
+    final n = name.trim();
+    for (final f in _folders.values) {
+      if (f.name == n) return f;
+    }
+    return createFolder(n);
+  }
+
   /// Saves edited fields of a note. No-op if nothing changed.
   Future<Note?> updateNote(
     String id, {

@@ -4,6 +4,7 @@ import 'audio/transcriber.dart';
 import 'data/attachment_repository.dart';
 import 'data/note_repository.dart';
 import 'data/settings_store.dart';
+import 'import/import_channel.dart';
 import 'security/app_lock.dart';
 import 'sync/sync_service.dart';
 
@@ -17,6 +18,7 @@ class AppScope extends InheritedWidget {
     required this.sync,
     required this.attachments,
     required this.voice,
+    required this.importer,
     required super.child,
   });
 
@@ -29,6 +31,9 @@ class AppScope extends InheritedWidget {
   /// Recording notification + on-device transcription (Android).
   final Transcriber voice;
 
+  /// File picker and files/text shared from other apps (Android).
+  final ImportChannel importer;
+
   static AppScope of(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<AppScope>()!;
 
@@ -39,5 +44,6 @@ class AppScope extends InheritedWidget {
       lock != oldWidget.lock ||
       attachments != oldWidget.attachments ||
       voice != oldWidget.voice ||
+      importer != oldWidget.importer ||
       sync != oldWidget.sync;
 }

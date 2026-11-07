@@ -11,6 +11,7 @@ import 'data/attachment_repository.dart';
 import 'data/database.dart';
 import 'data/note_repository.dart';
 import 'data/settings_store.dart';
+import 'import/import_channel.dart';
 import 'security/app_lock.dart';
 import 'sync/sync_service.dart';
 import 'sync/sync_store.dart';
@@ -43,6 +44,7 @@ Future<void> main() async {
     sync: sync,
     attachments: attachments,
     voice: Transcriber(),
+    importer: ImportChannel(),
     child: const NoteApp(),
   ));
 }
