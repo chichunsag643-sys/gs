@@ -46,6 +46,9 @@ dependencies:
   cryptography: ^2.9.0
   qr_flutter: ^4.1.0
   mobile_scanner: ^7.5.0
+  record: ^7.1.2
+  audioplayers: ^6.8.1
+  path_provider: ^2.1.6
   crypto: ^3.0.8
 dev_dependencies:
   flutter_test:

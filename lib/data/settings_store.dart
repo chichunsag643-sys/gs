@@ -17,6 +17,7 @@ class SettingsStore extends ChangeNotifier {
   static const _lastHlc = 'last_hlc';
   static const _audioSync = 'audio_sync';
   static const _syncEnabled = 'sync_enabled';
+  static const _autoTranscribe = 'auto_transcribe';
 
   static Future<SettingsStore> load(Database db) async {
     final rows = await db.query('meta');
@@ -48,10 +49,24 @@ class SettingsStore extends ChangeNotifier {
   bool get syncEnabled => _values[_syncEnabled] != '0';
   Future<void> setSyncEnabled(bool v) => _set(_syncEnabled, v ? '1' : '0');
 
-  /// Voice memo files: 'text_only' keeps only the note text and the memo's
-  /// details on this device; 'all' also downloads the audio files.
-  String get audioSync => _values[_audioSync] ?? 'text_only';
+  /// Whether this device keeps voice memo audio recorded on other devices.
+  ///
+  /// * `text_only` (default): only the transcript and the recording's details
+  ///   arrive; the audio stays on the devices that have it.
+  /// * `all`: audio files are copied to this device too.
+  ///
+  /// Recordings made on this device are always kept here.
+  String get audioSync =>
+      _values[_audioSync] == audioSyncAll ? audioSyncAll : audioSyncTextOnly;
   Future<void> setAudioSync(String v) => _set(_audioSync, v);
+
+  static const audioSyncTextOnly = 'text_only';
+  static const audioSyncAll = 'all';
+
+  /// Turn a new recording into text right after it stops.
+  bool get autoTranscribe => _values[_autoTranscribe] != '0';
+  Future<void> setAutoTranscribe(bool v) =>
+      _set(_autoTranscribe, v ? '1' : '0');
 
   String? get lastHlc => _values[_lastHlc];
   Future<void> setLastHlc(String hlc) => _set(_lastHlc, hlc, notify: false);

@@ -90,28 +90,11 @@ class SyncScreen extends StatelessWidget {
                   ),
               ],
               const Divider(),
-              _SectionTitle('음성 메모 파일'),
-              RadioGroup<String>(
-                groupValue: settings.audioSync,
-                onChanged: (v) {
-                  if (v != null) settings.setAudioSync(v);
-                },
-                child: const Column(
-                  children: [
-                    RadioListTile<String>(
-                      value: 'text_only',
-                      title: Text('텍스트만 받기 (권장)'),
-                      subtitle: Text('메모 글과 받아쓴 내용은 동기화하고, 녹음 파일은 '
-                          '녹음한 기기에만 둡니다. 저장 공간과 데이터를 아낍니다.'),
-                    ),
-                    RadioListTile<String>(
-                      value: 'all',
-                      title: Text('음성 파일까지 받기'),
-                      subtitle: Text('다른 기기에서 녹음한 파일도 이 기기에 받아 둡니다. '
-                          '녹음한 기기가 꺼져 있어도 이 기기에서 들을 수 있습니다.'),
-                    ),
-                  ],
-                ),
+              const ListTile(
+                leading: Icon(Icons.mic_none),
+                title: Text('음성 메모 파일'),
+                subtitle: Text('다른 기기의 녹음을 글자만 받을지, 음성 파일까지 받을지는 '
+                    '설정 → 음성 메모에서 기기마다 고를 수 있습니다.'),
               ),
               const Divider(),
               _SectionTitle('이 기기'),

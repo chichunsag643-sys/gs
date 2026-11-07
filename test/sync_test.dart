@@ -118,7 +118,7 @@ void main() {
       expect(await store.currentSeq(), seq, reason: 'no echo loops');
     });
 
-    test('upgrading a version 2 database keeps rows syncable', () async {
+    test('upgrading a version 2 database (pre-sync) keeps rows syncable', () async {
       final old = await databaseFactoryFfi.openDatabase(inMemoryDatabasePath,
           options: OpenDatabaseOptions(singleInstance: false));
       // The version 2 tables, as shipped before sync.
@@ -146,7 +146,7 @@ void main() {
         'hlc': '000000000000001-0000-a',
         'device_id': 'a',
       });
-      await upgradeSchema(old, 2, 3);
+      await upgradeSchema(old, 2, schemaVersion);
       final store = SyncStore(old, 'a');
       final batch = await store.changesSince(0);
       expect(batch.rows.single['id'], 'n');

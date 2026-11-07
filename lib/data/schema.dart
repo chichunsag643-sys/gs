@@ -1,6 +1,6 @@
 import 'package:sqflite_common/sqlite_api.dart';
 
-const int schemaVersion = 3;
+const int schemaVersion = 4;
 
 /// Creates or upgrades the schema. Kept free of plugin imports so tests can
 /// run it against an in-memory database.
@@ -51,13 +51,15 @@ Future<void> createSchema(Database db, int version) async {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     )''');
+  _createAttachments(batch);
   await batch.commit(noResult: true);
   await _addSyncTables(db);
 }
 
 /// Tables that sync between devices. Each gets a local `seq` (see
-/// [addSyncTracking]). `attachments` is added by its own migration.
-const syncedTables = ['folders', 'notes', 'devices'];
+/// [addSyncTracking]). A table added later calls [addSyncTracking] in its
+/// own migration.
+const syncedTables = ['folders', 'notes', 'devices', 'attachments'];
 
 /// Adds a local change counter to [table].
 ///
@@ -87,7 +89,7 @@ Future<void> addSyncTracking(DatabaseExecutor db, String table) async {
   await db.execute('UPDATE $table SET seq = 0');
 }
 
-/// Schema v3: device-to-device sync.
+/// Schema v4: device-to-device sync.
 Future<void> _addSyncTables(DatabaseExecutor db) async {
   await db.execute(
       'CREATE TABLE sync_counter (value INTEGER NOT NULL)');
@@ -116,6 +118,29 @@ Future<void> _addSyncTables(DatabaseExecutor db) async {
     )''');
 }
 
+/// Voice recordings attached to notes. Only metadata lives here; the audio
+/// itself is a file named `<id>.m4a` in the attachments folder, so each
+/// device can choose whether to keep other devices' audio (`audio_sync`).
+void _createAttachments(Batch batch) {
+  batch.execute('''
+    CREATE TABLE attachments (
+      id TEXT PRIMARY KEY,
+      note_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      mime TEXT NOT NULL,
+      duration_ms INTEGER NOT NULL DEFAULT 0,
+      size_bytes INTEGER NOT NULL DEFAULT 0,
+      sha256 TEXT NOT NULL DEFAULT '',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      hlc TEXT NOT NULL,
+      device_id TEXT NOT NULL,
+      deleted INTEGER NOT NULL DEFAULT 0
+    )''');
+  batch.execute('CREATE INDEX idx_attachments_hlc ON attachments(hlc)');
+  batch.execute('CREATE INDEX idx_attachments_note ON attachments(note_id)');
+}
+
 Future<void> upgradeSchema(Database db, int oldVersion, int newVersion) async {
   // One `if (oldVersion < N && newVersion >= N)` block per version.
   if (oldVersion < 2) {
@@ -123,6 +148,13 @@ Future<void> upgradeSchema(Database db, int oldVersion, int newVersion) async {
     await db.execute("ALTER TABLE notes ADD COLUMN ink TEXT NOT NULL DEFAULT ''");
   }
   if (oldVersion < 3 && newVersion >= 3) {
+    // Voice memos.
+    final batch = db.batch();
+    _createAttachments(batch);
+    await batch.commit(noResult: true);
+  }
+  if (oldVersion < 4 && newVersion >= 4) {
+    // Device-to-device sync.
     await _addSyncTables(db);
   }
 }

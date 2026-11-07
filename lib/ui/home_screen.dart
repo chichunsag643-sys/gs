@@ -46,7 +46,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final scope = AppScope.of(context);
     return ListenableBuilder(
-      listenable: Listenable.merge([scope.repo, scope.settings]),
+      listenable:
+          Listenable.merge([scope.repo, scope.settings, scope.attachments]),
       builder: (context, _) {
         final repo = scope.repo;
         final library = scope.settings.libraryEnabled;
@@ -195,12 +196,15 @@ class _NoteTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final hasVoice = AppScope.of(context).attachments.hasAny(note.id);
     final lines = note.plainText.trim().split('\n');
     final title = note.title.trim().isNotEmpty
         ? note.title.trim()
         : (lines.first.trim().isNotEmpty
             ? lines.first.trim()
-            : (note.ink.isNotEmpty ? '손글씨 메모' : '새 메모'));
+            : (note.ink.isNotEmpty
+                ? '손글씨 메모'
+                : (hasVoice ? '음성 메모' : '새 메모')));
     final preview = note.title.trim().isNotEmpty
         ? note.plainText.trim()
         : lines.skip(1).join(' ').trim();
@@ -226,10 +230,13 @@ class _NoteTile extends StatelessWidget {
                     ?.copyWith(color: theme.colorScheme.outline)),
           ],
         ),
-        trailing: note.pinned || note.ink.isNotEmpty
+        trailing: note.pinned || note.ink.isNotEmpty || hasVoice
             ? Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (hasVoice)
+                    Icon(Icons.mic_none,
+                        size: 18, color: theme.colorScheme.outline),
                   if (note.ink.isNotEmpty)
                     Icon(Icons.draw_outlined,
                         size: 18, color: theme.colorScheme.outline),
@@ -279,6 +286,7 @@ Future<void> _showNoteActions(BuildContext context, Note note) async {
             onTap: () async {
               Navigator.pop(sheet);
               if (await confirmDeleteNote(context)) {
+                await scope.attachments.deleteForNote(note.id);
                 await repo.deleteNote(note.id);
               }
             },
