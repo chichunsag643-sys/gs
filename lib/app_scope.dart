@@ -5,6 +5,7 @@ import 'data/attachment_repository.dart';
 import 'data/note_repository.dart';
 import 'data/settings_store.dart';
 import 'security/app_lock.dart';
+import 'sync/sync_service.dart';
 
 /// Hands the app's long-lived services to the widget tree.
 class AppScope extends InheritedWidget {
@@ -13,6 +14,7 @@ class AppScope extends InheritedWidget {
     required this.repo,
     required this.settings,
     required this.lock,
+    required this.sync,
     required this.attachments,
     required this.voice,
     required super.child,
@@ -21,6 +23,7 @@ class AppScope extends InheritedWidget {
   final NoteRepository repo;
   final SettingsStore settings;
   final AppLock lock;
+  final SyncService sync;
   final AttachmentRepository attachments;
 
   /// Recording notification + on-device transcription (Android).
@@ -35,5 +38,6 @@ class AppScope extends InheritedWidget {
       settings != oldWidget.settings ||
       lock != oldWidget.lock ||
       attachments != oldWidget.attachments ||
-      voice != oldWidget.voice;
+      voice != oldWidget.voice ||
+      sync != oldWidget.sync;
 }

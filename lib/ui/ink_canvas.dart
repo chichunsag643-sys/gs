@@ -47,6 +47,16 @@ class InkController extends ChangeNotifier {
   /// redraws them when they actually change.
   int revision = 0;
 
+  /// Replaces the drawing with one edited on another device. Undo history
+  /// is dropped, since it refers to strokes that may no longer exist.
+  void replaceDrawing(InkDrawing drawing) {
+    _strokes = List.of(drawing.strokes);
+    _undo.clear();
+    _redo.clear();
+    revision++;
+    notifyListeners();
+  }
+
   void _commit(List<InkStroke> next) {
     _undo.add(_strokes);
     if (_undo.length > _maxHistory) _undo.removeAt(0);

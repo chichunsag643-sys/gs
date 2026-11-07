@@ -16,6 +16,7 @@ class SettingsStore extends ChangeNotifier {
   static const _lockEnabled = 'lock_enabled';
   static const _lastHlc = 'last_hlc';
   static const _audioSync = 'audio_sync';
+  static const _syncEnabled = 'sync_enabled';
   static const _autoTranscribe = 'auto_transcribe';
 
   static Future<SettingsStore> load(Database db) async {
@@ -43,6 +44,10 @@ class SettingsStore extends ChangeNotifier {
   /// Fingerprint / device credential lock.
   bool get lockEnabled => _values[_lockEnabled] == '1';
   Future<void> setLockEnabled(bool v) => _set(_lockEnabled, v ? '1' : '0');
+
+  /// Whether this device syncs with its paired devices.
+  bool get syncEnabled => _values[_syncEnabled] != '0';
+  Future<void> setSyncEnabled(bool v) => _set(_syncEnabled, v ? '1' : '0');
 
   /// Whether this device keeps voice memo audio recorded on other devices.
   ///

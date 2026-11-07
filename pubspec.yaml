@@ -43,6 +43,9 @@ dependencies:
   uuid: ^4.6.0
   path: ^1.9.1
   sqflite_common: ^2.5.15
+  cryptography: ^2.9.0
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^7.5.0
   record: ^7.1.2
   audioplayers: ^6.8.1
   path_provider: ^2.1.6

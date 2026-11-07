@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import 'package:sqflite_common/sqlite_api.dart';
 import 'package:uuid/uuid.dart';
 
+import '../sync/blob_store.dart';
 import 'models.dart';
 import 'note_repository.dart';
 import 'settings_store.dart';
@@ -16,7 +17,7 @@ import 'settings_store.dart';
 /// tombstones). The audio is a file `<id>.m4a` in [dir], kept out of the
 /// database so that a device can sync only the text (`audio_sync =
 /// text_only`) and never download other devices' audio.
-class AttachmentRepository extends ChangeNotifier {
+class AttachmentRepository extends ChangeNotifier implements SyncBlobStore {
   AttachmentRepository._(this._db, this._settings, this._notes, this.dir);
 
   final Database _db;
@@ -85,10 +86,13 @@ class AttachmentRepository extends ChangeNotifier {
   // ---- Sync hooks (SyncBlobStore) -----------------------------------------
 
   /// Whether this device downloads audio recorded on other devices.
+  @override
   bool get wantsBlobs => _settings.audioSync == SettingsStore.audioSyncAll;
 
+  @override
   Future<bool> hasBlob(String id) async => File(_path(id)).exists();
 
+  @override
   Future<File?> blobFile(String id) async {
     final f = File(_path(id));
     return await f.exists() ? f : null;
@@ -96,6 +100,7 @@ class AttachmentRepository extends ChangeNotifier {
 
   /// Stores audio received from another device. Rejected if [sha256] does
   /// not match the bytes.
+  @override
   Future<void> importBlob(String id, List<int> bytes, String sha256) async {
     final actual = crypto.sha256.convert(bytes).toString();
     if (actual != sha256) {

@@ -138,7 +138,7 @@ void main() {
     await old.close();
     old = await databaseFactoryFfi.openDatabase(path,
         options: OpenDatabaseOptions(
-            version: schemaVersion, onUpgrade: upgradeSchema));
+            version: 3, onUpgrade: upgradeSchema));
     final tables = await old.query('sqlite_master',
         where: "type = 'table' AND name = 'attachments'");
     expect(tables, hasLength(1));
