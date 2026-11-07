@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../app_scope.dart';
 import '../data/models.dart';
 import 'folder_dialogs.dart';
+import 'import_flow.dart';
 import 'note_editor_screen.dart';
 import 'settings_screen.dart';
 
@@ -35,9 +38,62 @@ class _HomeScreenState extends State<HomeScreen> {
   NoteFilter _filter = const AllNotes();
   bool _searching = false;
   final _searchController = TextEditingController();
+  StreamSubscription<void>? _sharedSub;
+  bool _importing = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_sharedSub != null) return;
+    final importer = AppScope.of(context).importer;
+    _sharedSub = importer.sharedArrived.listen((_) => _takeShared());
+    // Shared before the app was running (it was started by 공유 / 열기).
+    WidgetsBinding.instance.addPostFrameCallback((_) => _takeShared());
+  }
+
+  /// Folder that new and imported notes go into.
+  String? get _currentFolderId {
+    final f = _filter;
+    return f is FolderNotes && AppScope.of(context).settings.libraryEnabled
+        ? f.folderId
+        : null;
+  }
+
+  /// Imports what another app shared, once the app is unlocked.
+  Future<void> _takeShared() async {
+    if (_importing || !mounted) return;
+    final scope = AppScope.of(context);
+    final lock = scope.lock;
+    if (lock.locked) {
+      void onUnlock() {
+        if (!lock.locked) {
+          lock.removeListener(onUnlock);
+          _takeShared();
+        }
+      }
+
+      lock.addListener(onUnlock);
+      return;
+    }
+    _importing = true;
+    try {
+      final items = await scope.importer.takeShared();
+      if (items.isEmpty || !mounted) return;
+      // Show the import on the home screen, above any open note.
+      Navigator.of(context).popUntil((r) => r.isFirst);
+      await importShared(context, items,
+          folderId: _currentFolderId, openNote: _open);
+    } finally {
+      _importing = false;
+    }
+  }
+
+  static Future<void> _open(BuildContext context, String id) =>
+      openNote(context, id);
 
   @override
   void dispose() {
+    _sharedSub?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -91,6 +147,20 @@ class _HomeScreenState extends State<HomeScreen> {
                   _searching = !_searching;
                   if (!_searching) _searchController.clear();
                 }),
+              ),
+              IconButton(
+                tooltip: '불러오기',
+                icon: const Icon(Icons.file_open_outlined),
+                onPressed: () async {
+                  if (_importing) return;
+                  _importing = true;
+                  try {
+                    await showImportMenu(context,
+                        folderId: _currentFolderId, openNote: _open);
+                  } finally {
+                    _importing = false;
+                  }
+                },
               ),
               IconButton(
                 tooltip: '설정',

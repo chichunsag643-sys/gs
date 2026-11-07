@@ -133,6 +133,7 @@ class AttachmentRepository extends ChangeNotifier implements SyncBlobStore {
     String noteId,
     String recordedPath, {
     required Duration duration,
+    String mime = 'audio/mp4',
   }) async {
     final id = _uuid.v4();
     final src = File(recordedPath);
@@ -149,6 +150,7 @@ class AttachmentRepository extends ChangeNotifier implements SyncBlobStore {
     final a = Attachment(
       id: id,
       noteId: noteId,
+      mime: mime,
       durationMs: duration.inMilliseconds,
       sizeBytes: bytes.length,
       sha256: crypto.sha256.convert(bytes).toString(),

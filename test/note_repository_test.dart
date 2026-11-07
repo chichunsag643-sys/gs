@@ -107,4 +107,33 @@ void main() {
     expect(settings.libraryEnabled, isFalse);
     expect(settings.deviceId, id);
   });
+
+  test('imported notes keep their original dates and get a fresh stamp',
+      () async {
+    var (_, repo) = await load();
+    final made = await repo.createNote();
+    final old = DateTime(2020, 5, 1, 9);
+    final note = await repo.importNote(
+      title: '예전 메모',
+      content: '[{"insert":"본문\\n"}]',
+      plainText: '본문',
+      pinned: true,
+      createdAt: old,
+      updatedAt: old,
+    );
+    expect(Hlc.parse(note.hlc) > Hlc.parse(made.hlc), isTrue);
+    (_, repo) = await load();
+    final loaded = repo.note(note.id)!;
+    expect(loaded.createdAt, old);
+    expect(loaded.updatedAt, old);
+    expect(loaded.pinned, isTrue);
+  });
+
+  test('folderNamed reuses an existing folder', () async {
+    final (_, repo) = await load();
+    final a = await repo.folderNamed('집');
+    final b = await repo.folderNamed(' 집 ');
+    expect(b.id, a.id);
+    expect(repo.folders.length, 1);
+  });
 }

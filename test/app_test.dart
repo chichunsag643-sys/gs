@@ -11,6 +11,7 @@ import 'package:gs_note/data/attachment_repository.dart';
 import 'package:gs_note/data/note_repository.dart';
 import 'package:gs_note/data/schema.dart';
 import 'package:gs_note/data/settings_store.dart';
+import 'package:gs_note/import/import_channel.dart';
 import 'package:gs_note/security/app_lock.dart';
 import 'package:gs_note/sync/sync_service.dart';
 import 'package:gs_note/sync/sync_store.dart';
@@ -54,6 +55,7 @@ void main() {
           repo: repo),
       attachments: attachments,
       voice: Transcriber(),
+      importer: ImportChannel(),
       child: const NoteApp(),
     ));
     await tester.pumpAndSettle();
