@@ -23,7 +23,7 @@ class InkController extends ChangeNotifier {
   Color color = penColors.first;
 
   /// Base width in page units (page is [InkDrawing.pageWidth] wide).
-  double width = 4;
+  double width = 5;
 
   /// Off: only the S Pen draws and fingers scroll the page.
   bool fingerDraws = false;
@@ -36,7 +36,7 @@ class InkController extends ChangeNotifier {
     Color(0xFFF9A825),
     Color(0xFF6A1B9A),
   ];
-  static const penWidths = [2.0, 4.0, 8.0];
+  static const penWidths = [3.0, 5.0, 9.0];
 
   InkDrawing get drawing => InkDrawing(List.unmodifiable(_strokes));
   List<InkStroke> get strokes => _strokes;
@@ -116,7 +116,7 @@ class InkController extends ChangeNotifier {
     tool = t;
     eraser = false;
     if (t == InkTool.highlighter && width < 8) width = 16;
-    if (t == InkTool.pen && width > 8) width = 4;
+    if (t == InkTool.pen && width > 9) width = 5;
     notifyListeners();
   }
 
@@ -300,6 +300,8 @@ class _InkCanvasState extends State<InkCanvas> {
                                       .colorScheme
                                       .outlineVariant
                                       .withAlpha(90),
+                                  dark: Theme.of(context).brightness ==
+                                      Brightness.dark,
                                 ),
                               ),
                             ),
@@ -312,14 +314,22 @@ class _InkCanvasState extends State<InkCanvas> {
                                   painter: _LivePainter(
                                     points: points,
                                     tool: _c.tool,
-                                    color: _c.tool == InkTool.highlighter
-                                        ? _c.color.withAlpha(0x66)
-                                        : _c.color,
+                                    color: inkOnScreen(
+                                      _c.tool == InkTool.highlighter
+                                          ? _c.color.withAlpha(0x66)
+                                          : _c.color,
+                                      Theme.of(context).brightness ==
+                                          Brightness.dark,
+                                    ),
                                     width: _liveWidth,
                                     scale: scale,
                                     hover: _hover,
                                     hoverErases: _hoverErases || _c.eraser,
-                                    hoverColor: _c.color,
+                                    hoverColor: inkOnScreen(
+                                      _c.color,
+                                      Theme.of(context).brightness ==
+                                          Brightness.dark,
+                                    ),
                                     hoverWidth: _c.width,
                                   ),
                                 ),
@@ -347,12 +357,14 @@ class _PaperPainter extends CustomPainter {
     required this.revision,
     required this.scale,
     required this.lineColor,
+    required this.dark,
   });
 
   final List<InkStroke> strokes;
   final int revision;
   final double scale;
   final Color lineColor;
+  final bool dark;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -364,7 +376,8 @@ class _PaperPainter extends CustomPainter {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), line);
     }
     for (final s in strokes) {
-      paintStroke(canvas, s.points, s.tool, Color(s.color), s.width, scale);
+      paintStroke(canvas, s.points, s.tool, inkOnScreen(Color(s.color), dark),
+          s.width, scale);
     }
   }
 
@@ -373,6 +386,7 @@ class _PaperPainter extends CustomPainter {
       old.revision != revision ||
       old.scale != scale ||
       old.lineColor != lineColor ||
+      old.dark != dark ||
       !identical(old.strokes, strokes);
 }
 
@@ -464,7 +478,9 @@ void paintStroke(
     return;
   }
 
-  double w(InkPoint p) => width * scale * (0.35 + 1.3 * p.pressure);
+  // Minimum 1.5 px so a light touch is still visible.
+  double w(InkPoint p) =>
+      math.max(1.5, width * scale * (0.6 + 0.9 * p.pressure));
   if (points.length == 1) {
     canvas.drawCircle(
       at(points.first),
@@ -596,7 +612,10 @@ class _ColorDot extends StatelessWidget {
           width: 26,
           height: 26,
           decoration: BoxDecoration(
-            color: color,
+            color: inkOnScreen(
+              color,
+              Theme.of(context).brightness == Brightness.dark,
+            ),
             shape: BoxShape.circle,
             border: Border.all(
               color: selected
@@ -646,4 +665,15 @@ class _WidthDot extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The default black pen would be invisible on the dark theme, so it is
+/// shown in a light colour there (like Samsung Notes). The stored colour
+/// stays black, so the same note looks right on a light-themed device.
+Color inkOnScreen(Color c, bool dark) {
+  if (!dark) return c;
+  if ((c.toARGB32() & 0xFFFFFF) == (InkController.penColors.first.toARGB32() & 0xFFFFFF)) {
+    return Color(0xFFECECEC).withAlpha((c.a * 255).round());
+  }
+  return c;
 }
