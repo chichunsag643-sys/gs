@@ -155,4 +155,13 @@ void main() {
     await tester.pump();
     expect(c.strokes, isEmpty);
   });
+
+  test('black pen shows light on the dark theme, other colours unchanged',
+      () {
+    final black = InkController.penColors.first;
+    expect(inkOnScreen(black, false), black);
+    expect(inkOnScreen(black, true).computeLuminance(), greaterThan(0.7));
+    final blue = InkController.penColors[1];
+    expect(inkOnScreen(blue, true), blue);
+  });
 }
