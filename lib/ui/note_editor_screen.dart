@@ -12,6 +12,7 @@ import '../data/models.dart';
 import '../data/note_repository.dart';
 import 'folder_dialogs.dart';
 import 'ink_canvas.dart';
+import 'note_links.dart';
 import 'rich_text_toolbar.dart';
 import 'stylus_text_selection.dart';
 import 'voice_memo_list.dart';
@@ -85,12 +86,16 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
 
   static Document _loadDocument(String content) {
     if (content.isEmpty) return Document();
+    Document doc;
     try {
-      return Document.fromJson(jsonDecode(content) as List<dynamic>);
+      doc = Document.fromJson(jsonDecode(content) as List<dynamic>);
     } catch (_) {
       // Corrupt or legacy content: show it as plain text rather than lose it.
-      return Document()..insert(0, content);
+      doc = Document()..insert(0, content);
     }
+    // Addresses in older or imported notes become tappable too.
+    linkifyDocument(doc);
+    return doc;
   }
 
   int _savedInkRevision = 0;
@@ -157,6 +162,8 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
   Future<void> _save() async {
     _saveTimer?.cancel();
     if (_deleted) return;
+    // Turn newly typed addresses (e.g. "www.naver.com") into links.
+    linkifyDocument(_quill.document);
     final plain = _quill.document.toPlainText().trim();
     final saved = await _repo.updateNote(
       widget.noteId,
@@ -371,6 +378,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                             padding: const EdgeInsets.only(bottom: 24),
                             expands: true,
                             onTapOutside: keepFocusForPenOnTapOutside,
+                            customRecognizerBuilder: tapToOpenLink,
                           ),
                         ),
                       ),
